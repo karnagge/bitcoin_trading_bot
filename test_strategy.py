@@ -6,6 +6,13 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# Constantes para RSI
+RSI_OVERSOLD = 30
+RSI_OVERBOUGHT = 70
+
+# Constante para aumento de volume
+VOLUME_INCREASE_THRESHOLD = 1.5
+
 class StrategyTester:
     def __init__(self):
         self.collector = DataCollector()
@@ -18,25 +25,43 @@ class StrategyTester:
         df = self.collector.fetch_ohlcv_data(timeframe=timeframe, limit=limit)
         df = self.collector.calculate_indicators(df)
         
-        # Prepara dados para o modelo
-        print("Preparando dados e treinando modelo...")
-        X, y = self.model.prepare_data(df)
-        self.model.train(X, y, epochs=20)
-        
-        # Gera previsões
-        predictions = []
-        for i in range(len(df) - self.model.model.input_shape[1]):
-            data = df.iloc[i:i+self.model.model.input_shape[1]][['close', 'volume', 'rsi', 'macd', 'bollinger_upper', 'bollinger_lower']]
-            pred = self.model.predict(data.values)
-            predictions.append(pred)
-        
-        # Adiciona previsões ao DataFrame
-        df['prediction'] = pd.Series(predictions + [np.nan] * (len(df) - len(predictions)))
-        
-        # Gera sinais
+        # Gera sinais baseados em múltiplos indicadores
         df['signal'] = 0  # 0: Neutro, 1: Compra, -1: Venda
-        df.loc[df['prediction'] > 0.7, 'signal'] = 1
-        df.loc[df['prediction'] < 0.3, 'signal'] = -1
+        
+        for i in range(1, len(df)):
+            # Condições de Compra
+            buy_conditions = [
+                # RSI em sobrevenda
+                df.iloc[i]['rsi'] < RSI_OVERSOLD,
+                # MACD cruzando para cima
+                df.iloc[i-1]['macd'] < df.iloc[i-1]['signal'] and df.iloc[i]['macd'] > df.iloc[i]['signal'],
+                # Preço próximo à Bollinger inferior
+                df.iloc[i]['close'] <= df.iloc[i]['bollinger_lower'] * 1.02,
+                # Volume aumentando
+                df.iloc[i]['volume'] > df.iloc[i-1]['volume'] * VOLUME_INCREASE_THRESHOLD,
+                # Tendência de alta
+                df.iloc[i]['sma_50'] > df.iloc[i]['sma_200']
+            ]
+            
+            # Condições de Venda
+            sell_conditions = [
+                # RSI em sobrecompra
+                df.iloc[i]['rsi'] > RSI_OVERBOUGHT,
+                # MACD cruzando para baixo
+                df.iloc[i-1]['macd'] > df.iloc[i-1]['signal'] and df.iloc[i]['macd'] < df.iloc[i]['signal'],
+                # Preço próximo à Bollinger superior
+                df.iloc[i]['close'] >= df.iloc[i]['bollinger_upper'] * 0.98,
+                # Volume diminuindo
+                df.iloc[i]['volume'] < df.iloc[i-1]['volume'] * 0.7,
+                # Tendência de baixa
+                df.iloc[i]['sma_50'] < df.iloc[i]['sma_200']
+            ]
+            
+            # Gera sinal apenas se múltiplas condições forem atendidas
+            if sum(buy_conditions) >= 3:  # Pelo menos 3 condições de compra
+                df.iloc[i, df.columns.get_loc('signal')] = 1
+            elif sum(sell_conditions) >= 3:  # Pelo menos 3 condições de venda
+                df.iloc[i, df.columns.get_loc('signal')] = -1
         
         return self.analyze_results(df)
     

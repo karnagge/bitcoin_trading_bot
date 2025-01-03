@@ -38,11 +38,33 @@ class DataCollector:
         exp2 = df['close'].ewm(span=26, adjust=False).mean()
         df['macd'] = exp1 - exp2
         df['signal'] = df['macd'].ewm(span=9, adjust=False).mean()
+        df['macd_hist'] = df['macd'] - df['signal']
 
         # Bollinger Bands
         df['sma'] = df['close'].rolling(window=20).mean()
         df['std'] = df['close'].rolling(window=20).std()
         df['bollinger_upper'] = df['sma'] + (df['std'] * 2)
         df['bollinger_lower'] = df['sma'] - (df['std'] * 2)
-
+        
+        # Tendência (Médias Móveis)
+        df['sma_50'] = df['close'].rolling(window=50).mean()
+        df['sma_200'] = df['close'].rolling(window=200).mean()
+        
+        # Momentum
+        df['momentum'] = df['close'].pct_change(periods=10)
+        
+        # Volatilidade
+        df['atr'] = self.calculate_atr(df)
+        
         return df
+        
+    def calculate_atr(self, df, period=14):
+        """Calcula o Average True Range (ATR)"""
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        
+        ranges = pd.concat([high_low, high_close, low_close], axis=1)
+        true_range = np.max(ranges, axis=1)
+        
+        return true_range.rolling(period).mean()
