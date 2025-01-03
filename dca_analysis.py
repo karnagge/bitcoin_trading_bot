@@ -89,25 +89,31 @@ class DCAAnalyzer:
     
     def plot_dca_analysis(self, price_df, dca_df):
         """Cria visualizações da análise DCA"""
-        plt.style.use('seaborn')
-        fig = plt.figure(figsize=(20, 15))
+        # Configuração do estilo
+        plt.rcParams['figure.figsize'] = [20, 15]
+        plt.rcParams['axes.grid'] = True
+        plt.rcParams['grid.alpha'] = 0.3
+        
+        # Cria uma figura com subplots em grid
+        fig = plt.figure()
         gs = fig.add_gridspec(3, 2, height_ratios=[2, 1, 1])
         
         # 1. Preço e Pontos de Compra
         ax1 = fig.add_subplot(gs[0, :])
-        ax1.plot(price_df.index, price_df['close'], label='Preço BTC', color='blue', alpha=0.7)
+        ax1.plot(price_df.index, price_df['close'], label='Preço BTC', color='blue', alpha=0.7, linewidth=2)
         ax1.scatter(dca_df['date'], dca_df['price'], 
                    color='green', alpha=0.5, s=50, label='Compras DCA')
-        ax1.set_title('Preço do Bitcoin e Pontos de Compra DCA', fontsize=12)
-        ax1.legend()
+        ax1.set_title('Preço do Bitcoin e Pontos de Compra DCA', fontsize=14, pad=20)
+        ax1.legend(fontsize=10)
         ax1.grid(True, alpha=0.3)
+        ax1.tick_params(axis='both', labelsize=10)
         
         # 2. Total Investido vs. Valor do Portfólio
         ax2 = fig.add_subplot(gs[1, 0])
         ax2.plot(dca_df['date'], dca_df['total_invested'], 
-                label='Total Investido', color='red')
+                label='Total Investido', color='red', linewidth=2)
         ax2.plot(dca_df['date'], dca_df['portfolio_value'], 
-                label='Valor do Portfólio', color='green')
+                label='Valor do Portfólio', color='green', linewidth=2)
         ax2.fill_between(dca_df['date'], 
                         dca_df['total_invested'], 
                         dca_df['portfolio_value'],
@@ -118,46 +124,58 @@ class DCAAnalyzer:
                         dca_df['portfolio_value'],
                         where=(dca_df['portfolio_value'] < dca_df['total_invested']),
                         color='red', alpha=0.3)
-        ax2.set_title('Total Investido vs. Valor do Portfólio', fontsize=10)
-        ax2.legend()
+        ax2.set_title('Total Investido vs. Valor do Portfólio', fontsize=12)
+        ax2.legend(fontsize=10)
         ax2.grid(True, alpha=0.3)
+        ax2.tick_params(axis='both', labelsize=10)
         
         # 3. Bitcoin Acumulado
         ax3 = fig.add_subplot(gs[1, 1])
         ax3.plot(dca_df['date'], dca_df['total_btc'], 
-                label='BTC Acumulado', color='orange')
+                label='BTC Acumulado', color='orange', linewidth=2)
         ax3.fill_between(dca_df['date'], 0, dca_df['total_btc'], 
                         color='orange', alpha=0.3)
-        ax3.set_title('Bitcoin Acumulado ao Longo do Tempo', fontsize=10)
-        ax3.legend()
+        ax3.set_title('Bitcoin Acumulado ao Longo do Tempo', fontsize=12)
+        ax3.legend(fontsize=10)
         ax3.grid(True, alpha=0.3)
+        ax3.tick_params(axis='both', labelsize=10)
         
         # 4. Preço Médio de Compra
         ax4 = fig.add_subplot(gs[2, 0])
         avg_prices = dca_df['total_invested'] / dca_df['total_btc']
         ax4.plot(dca_df['date'], avg_prices, 
-                label='Preço Médio', color='purple')
+                label='Preço Médio', color='purple', linewidth=2)
         ax4.plot(dca_df['date'], dca_df['price'], 
-                label='Preço de Mercado', color='gray', alpha=0.5)
-        ax4.set_title('Evolução do Preço Médio de Compra', fontsize=10)
-        ax4.legend()
+                label='Preço de Mercado', color='gray', alpha=0.5, linewidth=1)
+        ax4.set_title('Evolução do Preço Médio de Compra', fontsize=12)
+        ax4.legend(fontsize=10)
         ax4.grid(True, alpha=0.3)
+        ax4.tick_params(axis='both', labelsize=10)
         
         # 5. Retorno Percentual
         ax5 = fig.add_subplot(gs[2, 1])
         returns = ((dca_df['portfolio_value'] - dca_df['total_invested']) / 
                   dca_df['total_invested'] * 100)
-        ax5.plot(dca_df['date'], returns, label='Retorno %', color='blue')
+        ax5.plot(dca_df['date'], returns, label='Retorno %', color='blue', linewidth=2)
         ax5.axhline(y=0, color='r', linestyle='--', alpha=0.3)
         ax5.fill_between(dca_df['date'], 0, returns,
                         where=(returns >= 0), color='green', alpha=0.3)
         ax5.fill_between(dca_df['date'], 0, returns,
                         where=(returns < 0), color='red', alpha=0.3)
-        ax5.set_title('Retorno Percentual ao Longo do Tempo', fontsize=10)
-        ax5.legend()
+        ax5.set_title('Retorno Percentual ao Longo do Tempo', fontsize=12)
+        ax5.legend(fontsize=10)
         ax5.grid(True, alpha=0.3)
+        ax5.tick_params(axis='both', labelsize=10)
         
+        # Ajusta o layout
         plt.tight_layout()
+        
+        # Formata datas no eixo x
+        for ax in [ax1, ax2, ax3, ax4, ax5]:
+            ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter('%Y-%m-%d'))
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+        
+        # Salva o gráfico
         plt.savefig('dca_analysis.png', dpi=300, bbox_inches='tight')
         print("\nGráfico de análise DCA salvo como 'dca_analysis.png'")
         plt.close()
