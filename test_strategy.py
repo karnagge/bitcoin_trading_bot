@@ -129,9 +129,87 @@ class StrategyTester:
                 for i, trade in enumerate(worst_trades, 1):
                     print(f"{i}. {trade:.2f}%")
         
+        print("\n=== Comparativo com Buy and Hold (DCA) ===")
+        
+        # Simulação de DCA (Dollar Cost Averaging)
+        weekly_investment = 200  # USD
+        total_invested_dca = 0
+        total_btc_dca = 0
+        dca_entries = []
+        
+        # Agrupa os dados por semana e pega o primeiro preço de cada semana
+        df['week'] = pd.to_datetime(df.index).isocalendar().week
+        df['year'] = pd.to_datetime(df.index).year
+        weekly_prices = df.groupby(['year', 'week'])['close'].first()
+        
+        # Calcula DCA
+        for price in weekly_prices:
+            btc_bought = weekly_investment / price
+            total_invested_dca += weekly_investment
+            total_btc_dca += btc_bought
+            dca_entries.append({
+                'price': price,
+                'btc_bought': btc_bought,
+                'usd_invested': weekly_investment
+            })
+        
+        # Calcula resultado final do DCA
+        final_price = df['close'].iloc[-1]
+        dca_final_value = total_btc_dca * final_price
+        dca_profit_pct = ((dca_final_value - total_invested_dca) / total_invested_dca) * 100
+        
+        print("\n=== Resultados DCA ($200/semana) ===")
+        print(f"Total investido: ${total_invested_dca:,.2f}")
+        print(f"Total BTC acumulado: {total_btc_dca:.8f}")
+        print(f"Valor final: ${dca_final_value:,.2f}")
+        print(f"Lucro/Prejuízo: {dca_profit_pct:.2f}%")
+        print(f"Preço médio de compra: ${(total_invested_dca/total_btc_dca):,.2f}")
+        
+        # Compara com a estratégia de trading
+        if trades:
+            print("\n=== Comparativo de Estratégias ===")
+            print(f"Trading Bot: {total_profit:.2f}%")
+            print(f"DCA: {dca_profit_pct:.2f}%")
+            print(f"Diferença: {(total_profit - dca_profit_pct):.2f}%")
+        
+        # Adiciona gráfico comparativo
+        self.plot_comparison(df, dca_entries, total_profit, dca_profit_pct)
+        
         self.plot_analysis(df)
         return df
     
+    def plot_comparison(self, df, dca_entries, trading_profit, dca_profit):
+        """Plota gráfico comparativo entre as estratégias"""
+        plt.figure(figsize=(15, 8))
+        
+        # Preço do Bitcoin
+        plt.plot(df.index, df['close'], label='Preço BTC', color='blue', alpha=0.5)
+        
+        # Marca pontos de compra DCA
+        weekly_data = pd.DataFrame(dca_entries)
+        plt.scatter(df.groupby(['year', 'week']).first().index, 
+                   weekly_data['price'],
+                   color='green', alpha=0.2, s=30, label='Compras DCA')
+        
+        # Marca sinais de trading
+        plt.scatter(df[df['signal'] == 1].index, df[df['signal'] == 1]['close'], 
+                   color='green', marker='^', s=100, label='Compra (Trading)')
+        plt.scatter(df[df['signal'] == -1].index, df[df['signal'] == -1]['close'], 
+                   color='red', marker='v', s=100, label='Venda (Trading)')
+        
+        # Adiciona legendas com resultados
+        plt.title('Comparativo: Trading Bot vs DCA ($200/semana)')
+        plt.text(0.02, 0.98, f'Trading Bot: {trading_profit:.2f}%\nDCA: {dca_profit:.2f}%', 
+                transform=plt.gca().transAxes, bbox=dict(facecolor='white', alpha=0.8))
+        
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        # Salva o gráfico comparativo
+        plt.savefig('strategy_comparison.png', dpi=300, bbox_inches='tight')
+        print("\nGráfico comparativo salvo como 'strategy_comparison.png'")
+        plt.close()
+
     def plot_analysis(self, df):
         """Plota gráficos de análise"""
         # Configuração do estilo
