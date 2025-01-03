@@ -67,40 +67,37 @@ class StrategyTester:
     
     def analyze_results(self, df):
         """Analisa os resultados da estratégia"""
+        # Calcula estatísticas básicas
+        total_signals = len(df[df['signal'] != 0])
+        buy_signals = len(df[df['signal'] == 1])
+        sell_signals = len(df[df['signal'] == -1])
+        
+        # Calcula retornos para sinais de compra
+        returns = []
+        for i in range(len(df)-1):
+            if df.iloc[i]['signal'] == 1:  # Sinal de compra
+                entry_price = df.iloc[i]['close']
+                exit_price = df.iloc[i+1]['close']
+                returns.append((exit_price - entry_price) / entry_price * 100)
+        
+        avg_return = np.mean(returns) if returns else 0
+        
         results = {
-            'total_signals': len(df[df['signal'] != 0]),
-            'buy_signals': len(df[df['signal'] == 1]),
-            'sell_signals': len(df[df['signal'] == -1]),
+            'total_signals': total_signals,
+            'buy_signals': buy_signals,
+            'sell_signals': sell_signals,
             'signal_distribution': df['signal'].value_counts(),
             'avg_rsi_buy': df[df['signal'] == 1]['rsi'].mean(),
             'avg_rsi_sell': df[df['signal'] == -1]['rsi'].mean(),
-            'success_rate': self.calculate_success_rate(df)
+            'success_rate': self.calculate_success_rate(df),
+            'average_return': avg_return,
+            'momentum_correlation': df['momentum'].corr(df['close']) if 'momentum' in df else 0
         }
         
-        # Plota gráficos
+        # Plota os gráficos
         self.plot_analysis(df)
         
         return results
-    
-    def calculate_success_rate(self, df):
-        """Calcula taxa de sucesso dos sinais"""
-        success = 0
-        total = 0
-        
-        for i in range(len(df) - 1):
-            if df.iloc[i]['signal'] != 0:
-                total += 1
-                current_price = df.iloc[i]['close']
-                next_price = df.iloc[i + 1]['close']
-                
-                if df.iloc[i]['signal'] == 1:  # Sinal de compra
-                    if next_price > current_price:
-                        success += 1
-                else:  # Sinal de venda
-                    if next_price < current_price:
-                        success += 1
-        
-        return (success / total * 100) if total > 0 else 0
     
     def plot_analysis(self, df):
         """Plota gráficos de análise"""
@@ -123,19 +120,43 @@ class StrategyTester:
         
         # Correlação entre indicadores
         plt.subplot(2, 2, 3)
-        correlation = df[['close', 'volume', 'rsi', 'macd', 'prediction']].corr()
-        sns.heatmap(correlation, annot=True, cmap='coolwarm')
+        correlation = df[['close', 'volume', 'rsi', 'macd', 'macd_hist', 'sma_50', 'sma_200']].corr()
+        sns.heatmap(correlation, annot=True, cmap='coolwarm', fmt='.2f')
         plt.title('Correlação entre Indicadores')
         
-        # Distribuição de previsões
+        # Volume e Momentum
         plt.subplot(2, 2, 4)
-        sns.histplot(data=df, x='prediction', bins=30)
-        plt.title('Distribuição das Previsões')
+        plt.plot(df.index, df['momentum'], label='Momentum', color='blue', alpha=0.7)
+        plt.fill_between(df.index, df['momentum'], 0, where=(df['momentum'] >= 0), color='green', alpha=0.3)
+        plt.fill_between(df.index, df['momentum'], 0, where=(df['momentum'] < 0), color='red', alpha=0.3)
+        plt.title('Momentum ao Longo do Tempo')
+        plt.legend()
         
         plt.tight_layout()
         plt.savefig('strategy_analysis.png')
+        print("\nGráfico de análise salvo como 'strategy_analysis.png'")
         plt.close()
 
+    def calculate_success_rate(self, df):
+        """Calcula taxa de sucesso dos sinais"""
+        success = 0
+        total = 0
+        
+        for i in range(len(df) - 1):
+            if df.iloc[i]['signal'] != 0:
+                total += 1
+                current_price = df.iloc[i]['close']
+                next_price = df.iloc[i + 1]['close']
+                
+                if df.iloc[i]['signal'] == 1:  # Sinal de compra
+                    if next_price > current_price:
+                        success += 1
+                else:  # Sinal de venda
+                    if next_price < current_price:
+                        success += 1
+        
+        return (success / total * 100) if total > 0 else 0
+    
 def main():
     tester = StrategyTester()
     print("Iniciando análise da estratégia...")
@@ -153,6 +174,8 @@ def main():
         print(f"Taxa de sucesso: {results['success_rate']:.2f}%")
         print(f"RSI médio (compra): {results['avg_rsi_buy']:.2f}")
         print(f"RSI médio (venda): {results['avg_rsi_sell']:.2f}")
+        print(f"Retorno médio: {results['average_return']:.2f}%")
+        print(f"Correlação de momentum: {results['momentum_correlation']:.2f}")
         print("\nDistribuição dos sinais:")
         print(results['signal_distribution'])
         
