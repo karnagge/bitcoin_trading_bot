@@ -31,8 +31,12 @@ class StrategyTester:
         last_signal = 0  # Controle para alternar sinais
         
         for i in range(1, len(df)):
+            # Verifica se o preço está acima da média móvel de 200 dias
+            above_200ma = df.iloc[i]['close'] > df.iloc[i]['sma_200']
+            
             # Condições de Compra
             buy_conditions = {
+                'ABOVE_200MA': above_200ma,
                 'RSI_OVERSOLD': df.iloc[i]['rsi'] < RSI_OVERSOLD,
                 'MACD_CROSS_UP': df.iloc[i-1]['macd'] < df.iloc[i-1]['signal'] and df.iloc[i]['macd'] > df.iloc[i]['signal'],
                 'PRICE_NEAR_BB_LOW': df.iloc[i]['close'] <= df.iloc[i]['bollinger_lower'] * 1.02,
@@ -52,7 +56,8 @@ class StrategyTester:
             # Verifica condições de compra apenas se o último sinal foi venda ou neutro
             if last_signal <= 0:
                 active_buy_conditions = [cond for cond, is_true in buy_conditions.items() if is_true]
-                if len(active_buy_conditions) >= 3:
+                # Só gera sinal de compra se estiver acima da média móvel de 200 dias
+                if 'ABOVE_200MA' in active_buy_conditions and len(active_buy_conditions) >= 4:  # Aumentei para 4 pois ABOVE_200MA é obrigatório
                     df.iloc[i, df.columns.get_loc('signal')] = 1
                     df.iloc[i, df.columns.get_loc('signal_reasons')] = 'COMPRA: ' + ', '.join(active_buy_conditions)
                     last_signal = 1
@@ -69,37 +74,63 @@ class StrategyTester:
     
     def analyze_results(self, df):
         """Analisa os resultados da estratégia"""
-        # Calcula estatísticas básicas
-        total_signals = len(df[df['signal'] != 0])
+        total_trades = len(df[df['signal'] != 0])
         buy_signals = len(df[df['signal'] == 1])
         sell_signals = len(df[df['signal'] == -1])
         
-        # Calcula retornos para sinais de compra
-        returns = []
-        for i in range(len(df)-1):
-            if df.iloc[i]['signal'] == 1:  # Sinal de compra
-                entry_price = df.iloc[i]['close']
-                exit_price = df.iloc[i+1]['close']
-                returns.append((exit_price - entry_price) / entry_price * 100)
+        print("\n=== Relatório de Trading ===")
+        print(f"Total de sinais: {total_trades}")
+        print(f"Sinais de compra: {buy_signals}")
+        print(f"Sinais de venda: {sell_signals}")
         
-        avg_return = np.mean(returns) if returns else 0
+        # Calcula lucro/prejuízo
+        trades = []
+        current_position = None
+        entry_price = 0
+        total_profit = 0
+        winning_trades = 0
+        losing_trades = 0
         
-        results = {
-            'total_signals': total_signals,
-            'buy_signals': buy_signals,
-            'sell_signals': sell_signals,
-            'signal_distribution': df['signal'].value_counts(),
-            'avg_rsi_buy': df[df['signal'] == 1]['rsi'].mean(),
-            'avg_rsi_sell': df[df['signal'] == -1]['rsi'].mean(),
-            'success_rate': self.calculate_success_rate(df),
-            'average_return': avg_return,
-            'momentum_correlation': df['momentum'].corr(df['close']) if 'momentum' in df else 0
-        }
+        for idx, row in df.iterrows():
+            if row['signal'] == 1 and current_position is None:  # Compra
+                current_position = 'long'
+                entry_price = row['close']
+            elif row['signal'] == -1 and current_position == 'long':  # Venda
+                exit_price = row['close']
+                profit = ((exit_price - entry_price) / entry_price) * 100
+                total_profit += profit
+                trades.append(profit)
+                if profit > 0:
+                    winning_trades += 1
+                else:
+                    losing_trades += 1
+                current_position = None
         
-        # Plota os gráficos
+        if trades:
+            avg_profit = sum(trades) / len(trades)
+            win_rate = (winning_trades / len(trades)) * 100
+            
+            print("\n=== Análise de Performance ===")
+            print(f"Total de trades completados: {len(trades)}")
+            print(f"Lucro/Prejuízo total: {total_profit:.2f}%")
+            print(f"Média de lucro por trade: {avg_profit:.2f}%")
+            print(f"Taxa de acerto: {win_rate:.2f}%")
+            print(f"Trades vencedores: {winning_trades}")
+            print(f"Trades perdedores: {losing_trades}")
+            
+            if trades:
+                print("\nMelhores trades:")
+                best_trades = sorted(trades, reverse=True)[:3]
+                for i, trade in enumerate(best_trades, 1):
+                    print(f"{i}. {trade:.2f}%")
+                
+                print("\nPiores trades:")
+                worst_trades = sorted(trades)[:3]
+                for i, trade in enumerate(worst_trades, 1):
+                    print(f"{i}. {trade:.2f}%")
+        
         self.plot_analysis(df)
-        
-        return results
+        return df
     
     def plot_analysis(self, df):
         """Plota gráficos de análise"""
@@ -220,16 +251,14 @@ def main():
         results = tester.analyze_signals(timeframe=timeframe)
         
         print("\nResultados da Análise:")
-        print(f"Total de sinais: {results['total_signals']}")
-        print(f"Sinais de compra: {results['buy_signals']}")
-        print(f"Sinais de venda: {results['sell_signals']}")
-        print(f"Taxa de sucesso: {results['success_rate']:.2f}%")
-        print(f"RSI médio (compra): {results['avg_rsi_buy']:.2f}")
-        print(f"RSI médio (venda): {results['avg_rsi_sell']:.2f}")
-        print(f"Retorno médio: {results['average_return']:.2f}%")
-        print(f"Correlação de momentum: {results['momentum_correlation']:.2f}")
+        print(f"Total de sinais: {len(results[results['signal'] != 0])}")
+        print(f"Sinais de compra: {len(results[results['signal'] == 1])}")
+        print(f"Sinais de venda: {len(results[results['signal'] == -1])}")
+        print(f"Taxa de sucesso: {tester.calculate_success_rate(results):.2f}%")
+        print(f"RSI médio (compra): {results[results['signal'] == 1]['rsi'].mean():.2f}")
+        print(f"RSI médio (venda): {results[results['signal'] == -1]['rsi'].mean():.2f}")
         print("\nDistribuição dos sinais:")
-        print(results['signal_distribution'])
+        print(results['signal'].value_counts())
         
         print("\nGráficos salvos em 'strategy_analysis.png'")
 
