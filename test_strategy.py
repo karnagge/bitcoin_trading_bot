@@ -27,41 +27,43 @@ class StrategyTester:
         
         # Gera sinais baseados em múltiplos indicadores
         df['signal'] = 0  # 0: Neutro, 1: Compra, -1: Venda
+        df['signal_reasons'] = ''  # Armazena as razões para cada sinal
+        last_signal = 0  # Controle para alternar sinais
         
         for i in range(1, len(df)):
             # Condições de Compra
-            buy_conditions = [
-                # RSI em sobrevenda
-                df.iloc[i]['rsi'] < RSI_OVERSOLD,
-                # MACD cruzando para cima
-                df.iloc[i-1]['macd'] < df.iloc[i-1]['signal'] and df.iloc[i]['macd'] > df.iloc[i]['signal'],
-                # Preço próximo à Bollinger inferior
-                df.iloc[i]['close'] <= df.iloc[i]['bollinger_lower'] * 1.02,
-                # Volume aumentando
-                df.iloc[i]['volume'] > df.iloc[i-1]['volume'] * VOLUME_INCREASE_THRESHOLD,
-                # Tendência de alta
-                df.iloc[i]['sma_50'] > df.iloc[i]['sma_200']
-            ]
+            buy_conditions = {
+                'RSI_OVERSOLD': df.iloc[i]['rsi'] < RSI_OVERSOLD,
+                'MACD_CROSS_UP': df.iloc[i-1]['macd'] < df.iloc[i-1]['signal'] and df.iloc[i]['macd'] > df.iloc[i]['signal'],
+                'PRICE_NEAR_BB_LOW': df.iloc[i]['close'] <= df.iloc[i]['bollinger_lower'] * 1.02,
+                'VOLUME_INCREASE': df.iloc[i]['volume'] > df.iloc[i-1]['volume'] * VOLUME_INCREASE_THRESHOLD,
+                'UPTREND': df.iloc[i]['sma_50'] > df.iloc[i]['sma_200']
+            }
             
             # Condições de Venda
-            sell_conditions = [
-                # RSI em sobrecompra
-                df.iloc[i]['rsi'] > RSI_OVERBOUGHT,
-                # MACD cruzando para baixo
-                df.iloc[i-1]['macd'] > df.iloc[i-1]['signal'] and df.iloc[i]['macd'] < df.iloc[i]['signal'],
-                # Preço próximo à Bollinger superior
-                df.iloc[i]['close'] >= df.iloc[i]['bollinger_upper'] * 0.98,
-                # Volume diminuindo
-                df.iloc[i]['volume'] < df.iloc[i-1]['volume'] * 0.7,
-                # Tendência de baixa
-                df.iloc[i]['sma_50'] < df.iloc[i]['sma_200']
-            ]
+            sell_conditions = {
+                'RSI_OVERBOUGHT': df.iloc[i]['rsi'] > RSI_OVERBOUGHT,
+                'MACD_CROSS_DOWN': df.iloc[i-1]['macd'] > df.iloc[i-1]['signal'] and df.iloc[i]['macd'] < df.iloc[i]['signal'],
+                'PRICE_NEAR_BB_HIGH': df.iloc[i]['close'] >= df.iloc[i]['bollinger_upper'] * 0.98,
+                'VOLUME_DECREASE': df.iloc[i]['volume'] < df.iloc[i-1]['volume'] * 0.7,
+                'DOWNTREND': df.iloc[i]['sma_50'] < df.iloc[i]['sma_200']
+            }
             
-            # Gera sinal apenas se múltiplas condições forem atendidas
-            if sum(buy_conditions) >= 3:  # Pelo menos 3 condições de compra
-                df.iloc[i, df.columns.get_loc('signal')] = 1
-            elif sum(sell_conditions) >= 3:  # Pelo menos 3 condições de venda
-                df.iloc[i, df.columns.get_loc('signal')] = -1
+            # Verifica condições de compra apenas se o último sinal foi venda ou neutro
+            if last_signal <= 0:
+                active_buy_conditions = [cond for cond, is_true in buy_conditions.items() if is_true]
+                if len(active_buy_conditions) >= 3:
+                    df.iloc[i, df.columns.get_loc('signal')] = 1
+                    df.iloc[i, df.columns.get_loc('signal_reasons')] = 'COMPRA: ' + ', '.join(active_buy_conditions)
+                    last_signal = 1
+            
+            # Verifica condições de venda apenas se o último sinal foi compra
+            elif last_signal == 1:
+                active_sell_conditions = [cond for cond, is_true in sell_conditions.items() if is_true]
+                if len(active_sell_conditions) >= 3:
+                    df.iloc[i, df.columns.get_loc('signal')] = -1
+                    df.iloc[i, df.columns.get_loc('signal_reasons')] = 'VENDA: ' + ', '.join(active_sell_conditions)
+                    last_signal = -1
         
         return self.analyze_results(df)
     
@@ -101,40 +103,78 @@ class StrategyTester:
     
     def plot_analysis(self, df):
         """Plota gráficos de análise"""
-        plt.figure(figsize=(15, 10))
+        # Configuração do estilo
+        plt.style.use('seaborn')
         
-        # Preço e sinais
-        plt.subplot(2, 2, 1)
-        plt.plot(df.index, df['close'], label='Preço', alpha=0.7)
-        plt.scatter(df[df['signal'] == 1].index, df[df['signal'] == 1]['close'], 
-                   color='green', marker='^', label='Compra')
-        plt.scatter(df[df['signal'] == -1].index, df[df['signal'] == -1]['close'], 
-                   color='red', marker='v', label='Venda')
-        plt.title('Preço e Sinais')
-        plt.legend()
+        # Cria uma figura com subplots em grid
+        fig = plt.figure(figsize=(20, 15))
+        gs = fig.add_gridspec(3, 2)
         
-        # Distribuição de RSI
-        plt.subplot(2, 2, 2)
-        sns.histplot(data=df, x='rsi', hue=df['signal'].map({0: 'Neutro', 1: 'Compra', -1: 'Venda'}))
-        plt.title('Distribuição de RSI por Sinal')
+        # 1. Gráfico de Preço e Sinais
+        ax1 = fig.add_subplot(gs[0, :])
+        ax1.plot(df.index, df['close'], label='Preço', alpha=0.7, color='blue')
+        ax1.plot(df.index, df['sma_50'], label='SMA 50', alpha=0.5, color='orange')
+        ax1.plot(df.index, df['sma_200'], label='SMA 200', alpha=0.5, color='red')
         
-        # Correlação entre indicadores
-        plt.subplot(2, 2, 3)
-        correlation = df[['close', 'volume', 'rsi', 'macd', 'macd_hist', 'sma_50', 'sma_200']].corr()
-        sns.heatmap(correlation, annot=True, cmap='coolwarm', fmt='.2f')
-        plt.title('Correlação entre Indicadores')
+        # Adiciona Bandas de Bollinger
+        ax1.plot(df.index, df['bollinger_upper'], '--', color='gray', alpha=0.3)
+        ax1.plot(df.index, df['bollinger_lower'], '--', color='gray', alpha=0.3)
+        ax1.fill_between(df.index, df['bollinger_upper'], df['bollinger_lower'], alpha=0.1, color='gray')
         
-        # Volume e Momentum
-        plt.subplot(2, 2, 4)
-        plt.plot(df.index, df['momentum'], label='Momentum', color='blue', alpha=0.7)
-        plt.fill_between(df.index, df['momentum'], 0, where=(df['momentum'] >= 0), color='green', alpha=0.3)
-        plt.fill_between(df.index, df['momentum'], 0, where=(df['momentum'] < 0), color='red', alpha=0.3)
-        plt.title('Momentum ao Longo do Tempo')
-        plt.legend()
+        # Adiciona sinais com anotações
+        for idx, row in df[df['signal'] != 0].iterrows():
+            color = 'green' if row['signal'] == 1 else 'red'
+            marker = '^' if row['signal'] == 1 else 'v'
+            ax1.scatter(idx, row['close'], color=color, marker=marker, s=100)
+            
+            # Adiciona anotação com as razões
+            ax1.annotate(row['signal_reasons'], 
+                        xy=(idx, row['close']),
+                        xytext=(10, 10 if row['signal'] == 1 else -10),
+                        textcoords='offset points',
+                        ha='left',
+                        va='bottom' if row['signal'] == 1 else 'top',
+                        bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.5),
+                        rotation=45)
+        
+        ax1.set_title('Preço com Sinais de Trading e Médias Móveis')
+        ax1.legend()
+        
+        # 2. RSI
+        ax2 = fig.add_subplot(gs[1, 0])
+        ax2.plot(df.index, df['rsi'], label='RSI', color='purple')
+        ax2.axhline(y=70, color='r', linestyle='--', alpha=0.5)
+        ax2.axhline(y=30, color='g', linestyle='--', alpha=0.5)
+        ax2.fill_between(df.index, 70, 100, color='red', alpha=0.1)
+        ax2.fill_between(df.index, 0, 30, color='green', alpha=0.1)
+        ax2.set_title('RSI')
+        ax2.set_ylim(0, 100)
+        
+        # 3. MACD
+        ax3 = fig.add_subplot(gs[1, 1])
+        ax3.plot(df.index, df['macd'], label='MACD', color='blue')
+        ax3.plot(df.index, df['signal'], label='Signal', color='orange')
+        ax3.bar(df.index, df['macd_hist'], label='Histograma', color='gray', alpha=0.3)
+        ax3.set_title('MACD')
+        ax3.legend()
+        
+        # 4. Volume
+        ax4 = fig.add_subplot(gs[2, 0])
+        ax4.bar(df.index, df['volume'], label='Volume', color='blue', alpha=0.3)
+        ax4.set_title('Volume')
+        
+        # 5. Momentum
+        ax5 = fig.add_subplot(gs[2, 1])
+        ax5.plot(df.index, df['momentum'], label='Momentum', color='blue')
+        ax5.fill_between(df.index, df['momentum'], 0, 
+                        where=(df['momentum'] >= 0), color='green', alpha=0.3)
+        ax5.fill_between(df.index, df['momentum'], 0, 
+                        where=(df['momentum'] < 0), color='red', alpha=0.3)
+        ax5.set_title('Momentum')
         
         plt.tight_layout()
-        plt.savefig('strategy_analysis.png')
-        print("\nGráfico de análise salvo como 'strategy_analysis.png'")
+        plt.savefig('strategy_analysis.png', dpi=300, bbox_inches='tight')
+        print("\nGráfico de análise detalhado salvo como 'strategy_analysis.png'")
         plt.close()
 
     def calculate_success_rate(self, df):
