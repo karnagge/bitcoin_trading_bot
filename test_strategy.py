@@ -104,17 +104,19 @@ class StrategyTester:
     def plot_analysis(self, df):
         """Plota gráficos de análise"""
         # Configuração do estilo
-        plt.style.use('seaborn')
+        plt.rcParams['figure.figsize'] = [20, 15]
+        plt.rcParams['axes.grid'] = True
+        plt.rcParams['grid.alpha'] = 0.3
         
         # Cria uma figura com subplots em grid
-        fig = plt.figure(figsize=(20, 15))
-        gs = fig.add_gridspec(3, 2)
+        fig = plt.figure()
+        gs = fig.add_gridspec(3, 2, height_ratios=[2, 1, 1])
         
         # 1. Gráfico de Preço e Sinais
         ax1 = fig.add_subplot(gs[0, :])
-        ax1.plot(df.index, df['close'], label='Preço', alpha=0.7, color='blue')
-        ax1.plot(df.index, df['sma_50'], label='SMA 50', alpha=0.5, color='orange')
-        ax1.plot(df.index, df['sma_200'], label='SMA 200', alpha=0.5, color='red')
+        ax1.plot(df.index, df['close'], label='Preço', alpha=0.7, color='blue', linewidth=2)
+        ax1.plot(df.index, df['sma_50'], label='SMA 50', alpha=0.5, color='orange', linewidth=1)
+        ax1.plot(df.index, df['sma_200'], label='SMA 200', alpha=0.5, color='red', linewidth=1)
         
         # Adiciona Bandas de Bollinger
         ax1.plot(df.index, df['bollinger_upper'], '--', color='gray', alpha=0.3)
@@ -125,54 +127,64 @@ class StrategyTester:
         for idx, row in df[df['signal'] != 0].iterrows():
             color = 'green' if row['signal'] == 1 else 'red'
             marker = '^' if row['signal'] == 1 else 'v'
-            ax1.scatter(idx, row['close'], color=color, marker=marker, s=100)
+            ax1.scatter(idx, row['close'], color=color, marker=marker, s=200, zorder=5)
             
             # Adiciona anotação com as razões
             ax1.annotate(row['signal_reasons'], 
                         xy=(idx, row['close']),
-                        xytext=(10, 10 if row['signal'] == 1 else -10),
+                        xytext=(20, 20 if row['signal'] == 1 else -20),
                         textcoords='offset points',
                         ha='left',
                         va='bottom' if row['signal'] == 1 else 'top',
                         bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.5),
-                        rotation=45)
+                        rotation=45,
+                        fontsize=8)
         
-        ax1.set_title('Preço com Sinais de Trading e Médias Móveis')
-        ax1.legend()
+        ax1.set_title('Preço com Sinais de Trading e Médias Móveis', fontsize=12, pad=20)
+        ax1.legend(loc='upper left')
+        ax1.grid(True, alpha=0.3)
         
         # 2. RSI
         ax2 = fig.add_subplot(gs[1, 0])
-        ax2.plot(df.index, df['rsi'], label='RSI', color='purple')
+        ax2.plot(df.index, df['rsi'], label='RSI', color='purple', linewidth=1)
         ax2.axhline(y=70, color='r', linestyle='--', alpha=0.5)
         ax2.axhline(y=30, color='g', linestyle='--', alpha=0.5)
         ax2.fill_between(df.index, 70, 100, color='red', alpha=0.1)
         ax2.fill_between(df.index, 0, 30, color='green', alpha=0.1)
-        ax2.set_title('RSI')
+        ax2.set_title('RSI (Relative Strength Index)', fontsize=10)
         ax2.set_ylim(0, 100)
+        ax2.grid(True, alpha=0.3)
         
         # 3. MACD
         ax3 = fig.add_subplot(gs[1, 1])
-        ax3.plot(df.index, df['macd'], label='MACD', color='blue')
-        ax3.plot(df.index, df['signal'], label='Signal', color='orange')
+        ax3.plot(df.index, df['macd'], label='MACD', color='blue', linewidth=1)
+        ax3.plot(df.index, df['signal'], label='Signal', color='orange', linewidth=1)
         ax3.bar(df.index, df['macd_hist'], label='Histograma', color='gray', alpha=0.3)
-        ax3.set_title('MACD')
-        ax3.legend()
+        ax3.set_title('MACD (Moving Average Convergence Divergence)', fontsize=10)
+        ax3.legend(loc='upper left')
+        ax3.grid(True, alpha=0.3)
         
         # 4. Volume
         ax4 = fig.add_subplot(gs[2, 0])
-        ax4.bar(df.index, df['volume'], label='Volume', color='blue', alpha=0.3)
-        ax4.set_title('Volume')
+        volume_colors = ['green' if c >= o else 'red' for c, o in zip(df['close'], df['open'])]
+        ax4.bar(df.index, df['volume'], color=volume_colors, alpha=0.5)
+        ax4.set_title('Volume', fontsize=10)
+        ax4.grid(True, alpha=0.3)
         
         # 5. Momentum
         ax5 = fig.add_subplot(gs[2, 1])
-        ax5.plot(df.index, df['momentum'], label='Momentum', color='blue')
+        ax5.plot(df.index, df['momentum'], label='Momentum', color='blue', linewidth=1)
         ax5.fill_between(df.index, df['momentum'], 0, 
                         where=(df['momentum'] >= 0), color='green', alpha=0.3)
         ax5.fill_between(df.index, df['momentum'], 0, 
                         where=(df['momentum'] < 0), color='red', alpha=0.3)
-        ax5.set_title('Momentum')
+        ax5.set_title('Momentum', fontsize=10)
+        ax5.grid(True, alpha=0.3)
         
+        # Ajusta o layout
         plt.tight_layout()
+        
+        # Salva o gráfico
         plt.savefig('strategy_analysis.png', dpi=300, bbox_inches='tight')
         print("\nGráfico de análise detalhado salvo como 'strategy_analysis.png'")
         plt.close()
