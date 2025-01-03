@@ -11,7 +11,7 @@ class StrategyTester:
         self.collector = DataCollector()
         self.model = TradingModel()
         
-    def analyze_signals(self, timeframe='1h', limit=500):
+    def analyze_signals(self, timeframe='1d', limit=500):
         """Analisa os sinais gerados pela estratégia"""
         # Coleta dados históricos
         print("Coletando dados históricos...")
@@ -116,7 +116,7 @@ def main():
     print("Iniciando análise da estratégia...")
     
     # Testa diferentes timeframes
-    timeframes = ['1h', '4h', '1d']
+    timeframes = ['1d', '3d', '1w']
     for timeframe in timeframes:
         print(f"\nAnalisando timeframe: {timeframe}")
         results = tester.analyze_signals(timeframe=timeframe)

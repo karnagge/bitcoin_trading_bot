@@ -15,5 +15,5 @@ STOP_LOSS_PERCENTAGE = 0.02  # 2%
 TAKE_PROFIT_PERCENTAGE = 0.03  # 3%
 
 # Configurações do modelo de IA
-LOOKBACK_PERIOD = 24  # Período de análise em horas
+LOOKBACK_PERIOD = 30  # Período de análise em dias
 FEATURES = ['close', 'volume', 'rsi', 'macd', 'bollinger_upper', 'bollinger_lower']
