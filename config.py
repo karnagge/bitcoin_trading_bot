@@ -15,7 +15,8 @@ STOP_LOSS_PERCENTAGE = 0.02  # 2%
 TAKE_PROFIT_PERCENTAGE = 0.03  # 3%
 
 # Configurações do modelo de IA
-LOOKBACK_PERIOD = 30  # Período de análise em dias
+LOOKBACK_PERIOD = 365  # Período de análise em dias (1 ano)
+HISTORICAL_DATA_DAYS = 730  # 2 anos de dados históricos
 FEATURES = ['close', 'volume', 'rsi', 'macd', 'macd_hist', 'bollinger_upper', 'bollinger_lower', 
             'sma_50', 'sma_200', 'momentum', 'atr']
 

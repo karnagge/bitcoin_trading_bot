@@ -13,12 +13,14 @@ class DataCollector:
             'enableRateLimit': True
         })
 
-    def fetch_ohlcv_data(self, timeframe='1h', limit=100):
+    def fetch_ohlcv_data(self, timeframe='1d', limit=730):
         """Coleta dados OHLCV (Open, High, Low, Close, Volume) do par BTC/USDT"""
         try:
+            print(f"Coletando {limit} dias de dados históricos...")
             ohlcv = self.exchange.fetch_ohlcv(SYMBOL, timeframe, limit=limit)
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            print(f"Coletados {len(df)} dias de dados")
             return df
         except Exception as e:
             print(f"Erro ao coletar dados: {e}")

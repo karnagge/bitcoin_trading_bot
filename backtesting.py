@@ -12,11 +12,12 @@ class Backtester:
         self.trades = []
         self.collector = DataCollector()
         self.model = TradingModel()
+        self.historical_days = 730  # 2 anos de dados históricos
 
     def run_backtest(self, start_date, end_date, timeframe='1d'):
         """Executa o backtesting no período especificado"""
         # Coleta dados históricos
-        df = self.collector.fetch_ohlcv_data(timeframe=timeframe, limit=1000)
+        df = self.collector.fetch_ohlcv_data(timeframe=timeframe, limit=self.historical_days)
         df = self.collector.calculate_indicators(df)
         
         # Prepara e treina o modelo com dados anteriores ao período de teste

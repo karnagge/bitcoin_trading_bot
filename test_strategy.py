@@ -18,11 +18,11 @@ class StrategyTester:
         self.collector = DataCollector()
         self.model = TradingModel()
         
-    def analyze_signals(self, timeframe='1d', limit=500):
+    def analyze_signals(self, timeframe='1d', limit=730):
         """Analisa os sinais gerados pela estratégia"""
         # Coleta dados históricos
         print("Coletando dados históricos...")
-        df = self.collector.fetch_ohlcv_data(timeframe=timeframe, limit=limit)
+        df = self.collector.fetch_ohlcv_data(timeframe=timeframe, limit=limit)  # 2 anos de dados
         df = self.collector.calculate_indicators(df)
         
         # Gera sinais baseados em múltiplos indicadores
